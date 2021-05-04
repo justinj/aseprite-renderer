@@ -139,7 +139,6 @@ function build(fname) {
   };
 }
 
-// ??
 function mul_un8(a, b) {
   let t = a * b + 0x80;
   return ((t >> 8) + t) >> 8;
@@ -151,30 +150,38 @@ function writePng(parsedAse) {
     height: parsedAse.header.height,
   });
   for (let frame of parsedAse.frames) {
-    let chunks = [...frame];
-    // chunks.reverse();
-    for (let chunk of chunks) {
-      for (let i = 0; i < chunk.data.length; i += 4) {
-        let sr = chunk.data[i + 0];
-        let sg = chunk.data[i + 1];
-        let sb = chunk.data[i + 2];
-        let sa = chunk.data[i + 3];
+    for (let chunk of frame) {
+      for (let sy = 0; sy < chunk.h; sy++) {
+        let dy = sy + chunk.y;
+        if (dy < 0 || dy >= png.height) continue;
+        for (let sx = 0; sx < chunk.w; sx++) {
+          let dx = sx + chunk.x;
+          if (dx < 0 || dx >= png.width) continue;
 
-        let br = png.data[i + 0];
-        let bg = png.data[i + 1];
-        let bb = png.data[i + 2];
-        let ba = png.data[i + 3];
+          let si = 4 * (sy * chunk.w + sx);
+          let di = 4 * (dy * png.width + dx);
 
-        let ra = sa + ba - mul_un8(ba, sa);
+          let sr = chunk.data[si + 0];
+          let sg = chunk.data[si + 1];
+          let sb = chunk.data[si + 2];
+          let sa = chunk.data[si + 3];
 
-        let rr = br + ~~(((sr - br) * sa) / ra);
-        let rg = bg + ~~(((sg - bg) * sa) / ra);
-        let rb = bb + ~~(((sb - bb) * sa) / ra);
+          let br = png.data[di + 0];
+          let bg = png.data[di + 1];
+          let bb = png.data[di + 2];
+          let ba = png.data[di + 3];
 
-        png.data[i + 0] = Math.floor(rr);
-        png.data[i + 1] = Math.floor(rg);
-        png.data[i + 2] = Math.floor(rb);
-        png.data[i + 3] = Math.floor(ra);
+          let ra = sa + ba - mul_un8(ba, sa);
+
+          let rr = br + ~~(((sr - br) * sa) / ra);
+          let rg = bg + ~~(((sg - bg) * sa) / ra);
+          let rb = bb + ~~(((sb - bb) * sa) / ra);
+
+          png.data[di + 0] = rr;
+          png.data[di + 1] = rg;
+          png.data[di + 2] = rb;
+          png.data[di + 3] = ra;
+        }
       }
     }
   }
