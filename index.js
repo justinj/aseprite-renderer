@@ -52,9 +52,20 @@ const COLORMODE_RGB = 1;
 const COLORMODE_GRAYSCALE = 2;
 const COLORMODE_INDEXED = 3;
 
+// https://github.com/aseprite/aseprite/blob/f1b02a3347f51bfd74e1e55bdf2e7211471c59f8/src/doc/layer.h#L33
+
+const LAYER_NONE = 0;
+const LAYER_VISIBLE = 1; // Can be read
+const LAYER_EDITABLE = 2; // Can be written
+const LAYER_LOCKMOVE = 4; // Cannot be moved
+const LAYER_BACKGROUND = 8; // Stack order cannot be changed
+const LAYER_CONTINUOUS = 16; // Prefer to link cels when the user copy them
+const LAYER_COLLAPSED = 32; // Prefer to show this group layer collapsed
+const LAYER_REFERENCE = 64; // Is a reference layer
+
 const headerPos = 0;
 
-function headerParser(input) {
+function fileParser(input) {
   let i = 0;
   let parsed = {};
   let self = {
@@ -70,6 +81,18 @@ function headerParser(input) {
     },
     uint(name, width) {
       parsed[name] = self.nextUint(width);
+      return self;
+    },
+
+    nextString() {
+      let length = self.nextUint(16);
+
+      let result = input.slice(i, i + length).toString();
+      i += length;
+      return result;
+    },
+    string(name) {
+      parsed[name] = self.nextString();
       return self;
     },
     flush() {
@@ -95,10 +118,15 @@ function headerParser(input) {
   return self;
 }
 
-function build(fname) {
-  // https://github.com/aseprite/aseprite/blob/main/src/dio/aseprite_common.h#L57
-  // https://github.com/aseprite/aseprite/blob/main/src/dio/aseprite_decoder.cpp#L247
-  let parser = headerParser(fs.readFileSync(fname))
+const HEADER = "HEADER";
+const FRAME = "FRAME";
+const CHUNK = "CHUNK";
+const CEL = "CEL";
+const LAYER = "LAYER";
+
+function* parse(fname) {
+  let parser = fileParser(fs.readFileSync(fname));
+  let header = parser
     .seek(headerPos)
     .uint("size", 32)
     .uint("magic", 16)
@@ -122,73 +150,107 @@ function build(fname) {
     .uint("gridY", 16)
     //
     .uint("gridWidth", 16)
-    .uint("gridHeight", 16);
+    .uint("gridHeight", 16)
+    .flush();
 
-  let header = parser.flush();
+  yield {
+    type: HEADER,
+    header,
+  };
+
   parser.seek(headerPos + 128);
 
-  let frames = [];
-
   for (let i = 0; i < header.frames; i++) {
-    frames.push([...chunks(parser)]);
+    yield {
+      type: FRAME,
+      idx: i,
+    };
+    yield* chunks(parser);
   }
+}
 
-  return {
-    header,
-    frames,
-  };
+function* renderedFrames(stream) {
+  let header;
+  let frame;
+  let visible = true;
+
+  let elem = () => ({
+    width: header.width,
+    height: header.height,
+    frame,
+  });
+
+  let layers = [];
+
+  for (let ins of stream) {
+    switch (ins.type) {
+      case HEADER:
+        header = ins.header;
+        break;
+      case FRAME:
+        if (frame) {
+          yield elem();
+        }
+        frame = Buffer.alloc(4 * header.width * header.height, 0);
+        break;
+      case LAYER:
+        layers.push(ins);
+        break;
+      case CEL:
+        // TODO: is it true that these will always come in the appropriate
+        // order to render?
+        let layer = layers[ins.layerIndex];
+        if ((layer.flags & LAYER_VISIBLE) !== 0) {
+          renderChunk(header, frame, ins);
+        }
+        break;
+    }
+  }
+  if (frame) {
+    yield elem();
+  }
+}
+
+// https://github.com/aseprite/aseprite/blob/a5c36d0b0f3663d36a8105497458e86a41da310e/src/doc/blend_funcs.cpp#L202-L244
+function renderChunk(header, buf, chunk) {
+  for (let sy = 0; sy < chunk.h; sy++) {
+    let dy = sy + chunk.y;
+    if (dy < 0 || dy >= header.height) continue;
+    for (let sx = 0; sx < chunk.w; sx++) {
+      let dx = sx + chunk.x;
+      if (dx < 0 || dx >= header.width) continue;
+
+      let si = 4 * (sy * chunk.w + sx);
+      let di = 4 * (dy * header.width + dx);
+
+      let sr = chunk.data[si + 0];
+      let sg = chunk.data[si + 1];
+      let sb = chunk.data[si + 2];
+      let sa = chunk.data[si + 3];
+
+      let br = buf[di + 0];
+      let bg = buf[di + 1];
+      let bb = buf[di + 2];
+      let ba = buf[di + 3];
+
+      let ra = sa + ba - mul_un8(ba, sa);
+
+      let rr = br + ~~(((sr - br) * sa) / ra);
+      let rg = bg + ~~(((sg - bg) * sa) / ra);
+      let rb = bb + ~~(((sb - bb) * sa) / ra);
+
+      buf[di + 0] = rr;
+      buf[di + 1] = rg;
+      buf[di + 2] = rb;
+      buf[di + 3] = ra;
+    }
+  }
 }
 
 function mul_un8(a, b) {
   let t = a * b + 0x80;
   return ((t >> 8) + t) >> 8;
 }
-
-function writePng(parsedAse) {
-  let png = new PNG({
-    width: parsedAse.header.width,
-    height: parsedAse.header.height,
-  });
-  for (let frame of parsedAse.frames) {
-    for (let chunk of frame) {
-      for (let sy = 0; sy < chunk.h; sy++) {
-        let dy = sy + chunk.y;
-        if (dy < 0 || dy >= png.height) continue;
-        for (let sx = 0; sx < chunk.w; sx++) {
-          let dx = sx + chunk.x;
-          if (dx < 0 || dx >= png.width) continue;
-
-          let si = 4 * (sy * chunk.w + sx);
-          let di = 4 * (dy * png.width + dx);
-
-          let sr = chunk.data[si + 0];
-          let sg = chunk.data[si + 1];
-          let sb = chunk.data[si + 2];
-          let sa = chunk.data[si + 3];
-
-          let br = png.data[di + 0];
-          let bg = png.data[di + 1];
-          let bb = png.data[di + 2];
-          let ba = png.data[di + 3];
-
-          let ra = sa + ba - mul_un8(ba, sa);
-
-          let rr = br + ~~(((sr - br) * sa) / ra);
-          let rg = bg + ~~(((sg - bg) * sa) / ra);
-          let rb = bb + ~~(((sb - bb) * sa) / ra);
-
-          png.data[di + 0] = rr;
-          png.data[di + 1] = rg;
-          png.data[di + 2] = rb;
-          png.data[di + 3] = ra;
-        }
-      }
-    }
-  }
-  return png;
-}
-
-module.exports = { build, writePng };
 
 function* chunks(parser) {
   // https://github.com/aseprite/aseprite/blob/main/src/dio/aseprite_decoder.cpp#L302
@@ -219,10 +281,16 @@ function* chunks(parser) {
         // TODO
         break;
       case ASE_FILE_CHUNK_LAYER:
-        // TODO
+        yield {
+          type: LAYER,
+          ...readLayerChunk(parser),
+        };
         break;
       case ASE_FILE_CHUNK_CEL:
-        yield readCelChunk(parser, chunkPos, chunkHeader.chunkSize);
+        yield {
+          type: CEL,
+          ...readCelChunk(parser, chunkPos, chunkHeader.chunkSize),
+        };
         break;
       default:
         console.log(
@@ -293,3 +361,24 @@ function readCelChunk(parser, chunkPos, chunkSize) {
       console.log("unhandled cel type");
   }
 }
+
+function readLayerChunk(parser) {
+  let header = parser
+    .uint("flags", 16)
+    .uint("layerType", 16)
+    .uint("childLevel", 16)
+    // Aseprite appears to ignore these.
+    .uint("defaultWidth", 16)
+    .uint("defaultHeight", 16)
+    //
+    // TODO: we should check here that we support the blend mode here.
+    .uint("blendMode", 16)
+    .uint("opacity", 8)
+    .jump(3)
+    .string("name")
+    .flush();
+
+  return header;
+}
+
+module.exports = { renderedFrames, parse };

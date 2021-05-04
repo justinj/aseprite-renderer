@@ -2,9 +2,8 @@ const assert = require("assert");
 const fs = require("fs");
 const glob = require("glob");
 const { PNG } = require("pngjs");
-const { build, writePng } = require("./index");
+const { parse, renderedFrames } = require("./index");
 const { execFile } = require("child_process");
-const { join } = require("path");
 
 let idx = process.argv.indexOf("--regen");
 
@@ -39,8 +38,13 @@ describe("parser", () => {
       it(`handles ${ase}`, () => {
         let basename = ase.slice(0, -".ase".length);
         let outFname = basename + ".png";
-        let png = writePng(build(ase));
-        fs.writeFileSync(outFname, PNG.sync.write(png));
+
+        let parsed = parse(ase);
+        for (let frame of renderedFrames(parsed)) {
+          let png = new PNG({ width: frame.width, height: frame.height });
+          png.data = frame.frame;
+          fs.writeFileSync(outFname, PNG.sync.write(png));
+        }
 
         let expectedFname = basename + ".ase.png";
 
