@@ -172,7 +172,6 @@ function* parse(fname) {
 function* renderedFrames(stream) {
   let header;
   let frame;
-  let visible = true;
 
   let elem = () => ({
     width: header.width,

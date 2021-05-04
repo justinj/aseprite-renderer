@@ -37,7 +37,7 @@ describe("parser", () => {
     for (let ase of glob.sync("testdata/*.ase")) {
       it(`handles ${ase}`, () => {
         let basename = ase.slice(0, -".ase".length);
-        let outFname = basename + ".png";
+        let outFname = basename + ".out.png";
 
         let parsed = parse(ase);
         for (let frame of renderedFrames(parsed)) {
