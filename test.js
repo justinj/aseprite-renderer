@@ -2,7 +2,7 @@ const assert = require("assert");
 const fs = require("fs");
 const glob = require("glob");
 const { PNG } = require("pngjs");
-const { parse, renderedFrames } = require("./index");
+const { parse, renderFrames } = require("./index");
 const { execFile } = require("child_process");
 
 let idx = process.argv.indexOf("--regen");
@@ -59,7 +59,7 @@ describe("parser", () => {
 
         let parsed = parse(ase);
         let frameCount = 0;
-        for (let frame of renderedFrames(parsed)) {
+        for (let frame of renderFrames(parsed)) {
           let png = new PNG({ width: frame.width, height: frame.height });
           png.data = frame.frame;
           fs.writeFileSync(

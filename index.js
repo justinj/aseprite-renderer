@@ -179,11 +179,12 @@ function* parse(fname) {
   }
 }
 
-function* renderedFrames(stream) {
+function* renderFrames(stream) {
   let header;
   let frame;
 
   let elem = () => ({
+    type: FRAME,
     width: header.width,
     height: header.height,
     frame,
@@ -221,6 +222,10 @@ function* renderedFrames(stream) {
         break;
       case LINK:
         frame = renderedFrames[ins.linkFrame];
+        break;
+      case TAGS:
+        // Just pass this on up.
+        yield ins;
         break;
       default:
         throw new Error(`unhandled: ${ins.type}`);
@@ -428,4 +433,4 @@ function readLayerChunk(parser) {
   return header;
 }
 
-module.exports = { renderedFrames, parse };
+module.exports = { renderFrames, parse };
