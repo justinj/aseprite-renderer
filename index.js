@@ -112,6 +112,8 @@ function fileParser(file) {
       i = pos;
       return self;
     },
+    // TODO: this is silly since this is bitwidth and uint is byte width. Make
+    // them the same.
     jump(d) {
       i += d;
       return self;
@@ -130,7 +132,9 @@ function fileParser(file) {
 const HEADER = "HEADER";
 const FRAME = "FRAME";
 const CEL = "CEL";
+const LINK = "LINK";
 const LAYER = "LAYER";
+const TAGS = "TAGS";
 
 function* parse(fname) {
   let parser = fileParser(fs.readFileSync(fname));
@@ -185,6 +189,11 @@ function* renderedFrames(stream) {
     frame,
   });
 
+  // We need to keep this around because link frames might reference prior frames.
+  // AFAIK the Aseprite UI only lets you reference one frame back (ignoring other link frames),
+  // but the file format seems to support more general than that.
+  // TODO: see if the Aseprite codebase allows us to only remember the last frame.
+  let renderedFrames = [];
   let layers = [];
 
   for (let ins of stream) {
@@ -194,6 +203,7 @@ function* renderedFrames(stream) {
         break;
       case FRAME:
         if (frame) {
+          renderedFrames.push(frame);
           yield elem();
         }
         frame = Buffer.alloc(4 * header.width * header.height, 0);
@@ -209,6 +219,11 @@ function* renderedFrames(stream) {
           renderChunk(header, frame, ins);
         }
         break;
+      case LINK:
+        frame = renderedFrames[ins.linkFrame];
+        break;
+      default:
+        throw new Error(`unhandled: ${ins.type}`);
     }
   }
   if (frame) {
@@ -285,6 +300,9 @@ function* chunks(parser) {
       case ASE_FILE_CHUNK_FLI_COLOR2:
         // TODO
         break;
+      case ASE_FILE_CHUNK_TAGS:
+        yield readTagsChunk(parser);
+        break;
       case ASE_FILE_CHUNK_LAYER:
         yield readLayerChunk(parser);
         break;
@@ -320,15 +338,33 @@ function readColorProfile(parser) {
   }
 }
 
-function pixelFormatFromDepth(depth) {
-  switch (depth) {
-    case 32:
-      return COLORMODE_RGB;
-    case 16:
-      return COLORMODE_GRAYSCALE;
-    default:
-      return COLORMODE_INDEXED;
+function readTagsChunk(parser) {
+  let { ntags } = parser.uint("ntags", 16).flush();
+
+  parser.jump(8);
+
+  let tags = [];
+  for (let i = 0; i < ntags; i++) {
+    tags.push(
+      parser
+        .uint("from", 16)
+        .uint("to", 16)
+        // TODO: need to handle animation dir
+        .uint("anidir", 8)
+        .jump(8)
+        .uint("r", 8)
+        .uint("g", 8)
+        .uint("b", 8)
+        .jump(1)
+        .string("name")
+        .flush()
+    );
   }
+
+  return {
+    type: TAGS,
+    tags,
+  };
 }
 
 function readCelChunk(parser, chunkPos, chunkSize) {
@@ -344,6 +380,15 @@ function readCelChunk(parser, chunkPos, chunkSize) {
 
   // TODO: aesprite does some error checking here.
   switch (header.celType) {
+    case ASE_FILE_LINK_CEL:
+      let { linkFrame } = parser.uint("linkFrame", 16).flush();
+      // Aseprite does some stuff with the x and y here, but the comments imply
+      // that is only in service of some very old file formats, and we probably
+      // don't need to worry about it.
+      return {
+        type: LINK,
+        linkFrame,
+      };
     case ASE_FILE_COMPRESSED_CEL:
       let subheader = parser.uint("w", 16).uint("h", 16).flush();
       let imageData = parser.sub(parser.tell(), chunkPos + chunkSize);

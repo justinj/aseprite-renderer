@@ -34,11 +34,19 @@ function canonical(binary, from, to) {
 
 describe("parser", () => {
   describe("parses tag data", () => {
-    it.skip("can parse the frog king sprite", () => {
+    it("can parse the frog king sprite", () => {
       let fname = "ases/frog.ase";
       let parsed = parse(fname);
       for (let p of parsed) {
-        console.log(p);
+        if (p.type === "TAGS") {
+          assert.deepStrictEqual(p, {
+            type: "TAGS",
+            tags: [
+              { from: 0, to: 3, anidir: 0, r: 0, g: 0, b: 0, name: "idle" },
+              { from: 4, to: 11, anidir: 0, r: 0, g: 0, b: 0, name: "jump" },
+            ],
+          });
+        }
       }
     });
   });
