@@ -83,6 +83,14 @@ function fileParser(input) {
       parsed[name] = self.nextUint(width);
       return self;
     },
+    int(name, width) {
+      let val = self.nextUint(width);
+      if (val & (1 << (width - 1))) {
+        val -= 2 * Math.pow(2, width - 1);
+      }
+      parsed[name] = val;
+      return self;
+    },
 
     nextString() {
       let length = self.nextUint(16);
@@ -145,10 +153,8 @@ function* parse(fname) {
     .uint("ncolors", 16)
     .uint("pixelWidth", 8)
     .uint("pixelHeight", 8)
-    // TODO: These need to be signed ints
-    .uint("gridX", 16)
-    .uint("gridY", 16)
-    //
+    .int("gridX", 16)
+    .int("gridY", 16)
     .uint("gridWidth", 16)
     .uint("gridHeight", 16)
     .flush();
@@ -333,8 +339,8 @@ function readCelChunk(parser, chunkPos, chunkSize) {
   let header = parser
     .uint("layerIndex", 16)
     // TODO: this should be signed
-    .uint("x", 16)
-    .uint("y", 16)
+    .int("x", 16)
+    .int("y", 16)
     .uint("opacity", 8)
     .uint("celType", 16)
     .jump(7)
