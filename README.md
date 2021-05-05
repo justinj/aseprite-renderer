@@ -1,6 +1,6 @@
-# aseprite.js
+# aseprite-renderer
 
-This is a module to directly read the files of [aseprite](https://www.aseprite.org/) without having to export them to a more common format like PNG.
+This is a module to directly read the files of [aseprite](https://www.aseprite.org/) without having to manually export them to a more common format like PNG.
 
 It's very feature-incomplete, and only has features I've needed so far.
 You should probably not trust that it will faithfully render any given

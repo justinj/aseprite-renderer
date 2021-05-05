@@ -65,7 +65,7 @@ const LAYER_REFERENCE = 64; // Is a reference layer
 
 const headerPos = 0;
 
-function fileParser(input) {
+function fileParser(file) {
   let i = 0;
   let parsed = {};
   let self = {
@@ -74,7 +74,7 @@ function fileParser(input) {
 
       let result = 0;
       for (let j = 0; j < bytes; j++) {
-        result += input[i + j] * Math.pow(2, j * 8);
+        result += file[i + j] * Math.pow(2, j * 8);
       }
       i += bytes;
       return result;
@@ -95,7 +95,7 @@ function fileParser(input) {
     nextString() {
       let length = self.nextUint(16);
 
-      let result = input.slice(i, i + length).toString();
+      let result = file.slice(i, i + length).toString();
       i += length;
       return result;
     },
@@ -120,15 +120,15 @@ function fileParser(input) {
       return i;
     },
     sub(start, end) {
-      return input.slice(start, end);
+      return file.slice(start, end);
     },
   };
+
   return self;
 }
 
 const HEADER = "HEADER";
 const FRAME = "FRAME";
-const CHUNK = "CHUNK";
 const CEL = "CEL";
 const LAYER = "LAYER";
 
@@ -286,16 +286,10 @@ function* chunks(parser) {
         // TODO
         break;
       case ASE_FILE_CHUNK_LAYER:
-        yield {
-          type: LAYER,
-          ...readLayerChunk(parser),
-        };
+        yield readLayerChunk(parser);
         break;
       case ASE_FILE_CHUNK_CEL:
-        yield {
-          type: CEL,
-          ...readCelChunk(parser, chunkPos, chunkHeader.chunkSize),
-        };
+        yield readCelChunk(parser, chunkPos, chunkHeader.chunkSize);
         break;
       default:
         console.log(
@@ -311,16 +305,18 @@ function readColorProfile(parser) {
   let header = parser
     .uint("type", 16)
     .uint("flags", 16)
-    // this needs to be a fixed-point 32-bit integer(?)
+    // this needs to be a fixed-point signed 32-bit integer(?)
     .uint("gamma", 32)
     .jump(8)
     .flush();
   switch (header.type) {
     case ASE_FILE_SRGB_COLOR_PROFILE:
-      // TODO: not sure what this is for yet.
+      // TODO: don't actually do anything with this yet!
       break;
     default:
-      console.log("unhandled color space type:", header.type.toString(16));
+      // I suspect if there's a different one of these in use we need to do
+      // something special.
+      throw new Error("unhandled color space type:", header.type.toString(16));
   }
 }
 
@@ -352,6 +348,7 @@ function readCelChunk(parser, chunkPos, chunkSize) {
       let subheader = parser.uint("w", 16).uint("h", 16).flush();
       let imageData = parser.sub(parser.tell(), chunkPos + chunkSize);
       return {
+        type: CEL,
         layerIndex: header.layerIndex,
         w: subheader.w,
         h: subheader.h,
@@ -359,11 +356,9 @@ function readCelChunk(parser, chunkPos, chunkSize) {
         y: header.y,
         opacity: header.opacity,
         data: inflateSync(imageData),
-        // TODO: I think this should be handled a level up instead of passed in
-        // and then passed back out.
       };
     default:
-      console.log("unhandled cel type");
+      throw new Error("unhandled cel type");
   }
 }
 
@@ -382,6 +377,8 @@ function readLayerChunk(parser) {
     .jump(3)
     .string("name")
     .flush();
+
+  header.type = LAYER;
 
   return header;
 }
