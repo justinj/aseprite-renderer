@@ -178,12 +178,14 @@ function* parse(fname) {
 function* renderFrames(stream) {
   let header;
   let frame;
+  let duration;
 
   let elem = () => ({
     type: FRAME,
     width: header.width,
     height: header.height,
     frame,
+    duration,
   });
 
   // We need to keep this around because link frames might reference prior
@@ -204,6 +206,7 @@ function* renderFrames(stream) {
           renderedFrames.push([]);
           yield elem();
         }
+        duration = ins.duration;
         frame = Buffer.alloc(4 * header.width * header.height, 0);
         break;
       case LAYER:
