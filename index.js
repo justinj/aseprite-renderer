@@ -195,7 +195,7 @@ function* renderFrames(stream) {
   // (ignoring other link frames), but the file format seems to support more
   // general than that.
   // TODO: see if the Aseprite codebase allows us to only remember the last frame.
-  let renderedFrames = [];
+  let renderedFrames = [[]];
   let layers = [];
 
   for (let ins of stream) {
@@ -205,7 +205,7 @@ function* renderFrames(stream) {
         break;
       case FRAME:
         if (frame) {
-          renderedFrames.push(frame);
+          renderedFrames.push([]);
           yield elem();
         }
         frame = Buffer.alloc(4 * header.width * header.height, 0);
@@ -217,12 +217,19 @@ function* renderFrames(stream) {
         // TODO: is it true that these will always come in the appropriate
         // order to render?
         let layer = layers[ins.layerIndex];
+        renderedFrames[renderedFrames.length - 1].push(ins);
         if ((layer.flags & LAYER_VISIBLE) !== 0) {
           renderChunk(header, frame, ins);
         }
         break;
       case LINK:
-        frame = renderedFrames[ins.linkFrame];
+        // TODO: this is kind of sketchy: what if there are
+        // multiple cels in a layer? need to make this more robust.
+        let linked = renderedFrames[ins.linkFrame][ins.layerIndex];
+        let l = layers[ins.layerIndex];
+        if ((l.flags & LAYER_VISIBLE) !== 0) {
+          renderChunk(header, frame, linked);
+        }
         break;
       case TAGS:
         // Just pass this on up.
@@ -393,6 +400,7 @@ function readCelChunk(parser, chunkPos, chunkSize) {
       // don't need to worry about it.
       return {
         type: LINK,
+        layerIndex: header.layerIndex,
         linkFrame,
       };
     case ASE_FILE_COMPRESSED_CEL:
