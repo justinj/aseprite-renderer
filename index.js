@@ -190,9 +190,10 @@ function* renderFrames(stream) {
     frame,
   });
 
-  // We need to keep this around because link frames might reference prior frames.
-  // AFAIK the Aseprite UI only lets you reference one frame back (ignoring other link frames),
-  // but the file format seems to support more general than that.
+  // We need to keep this around because link frames might reference prior
+  // frames.  AFAIK the Aseprite UI only lets you reference one frame back
+  // (ignoring other link frames), but the file format seems to support more
+  // general than that.
   // TODO: see if the Aseprite codebase allows us to only remember the last frame.
   let renderedFrames = [];
   let layers = [];
