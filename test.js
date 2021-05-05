@@ -33,20 +33,35 @@ function canonical(binary, from, to) {
 }
 
 describe("parser", () => {
+  describe("parses tag data", () => {
+    it.skip("can parse the frog king sprite", () => {
+      let fname = "ases/frog.ase";
+      let parsed = parse(fname);
+      for (let p of parsed) {
+        console.log(p);
+      }
+    });
+  });
+
   describe("can create pngs from ases", () => {
     for (let ase of glob.sync("testdata/*.ase")) {
       it(`handles ${ase}`, () => {
         let basename = ase.slice(0, -".ase".length);
-        let outFname = basename + ".out.png";
+        let outFname = basename + ".{frame}.out.png";
 
         let parsed = parse(ase);
+        let frameCount = 0;
         for (let frame of renderedFrames(parsed)) {
           let png = new PNG({ width: frame.width, height: frame.height });
           png.data = frame.frame;
-          fs.writeFileSync(outFname, PNG.sync.write(png));
+          fs.writeFileSync(
+            outFname.replace("{frame}", frameCount),
+            PNG.sync.write(png)
+          );
+          frameCount++;
         }
 
-        let expectedFname = basename + ".ase.png";
+        let expectedFname = basename + ".{frame}.ase.png";
 
         let p = Promise.resolve();
         if (binary !== null) {
@@ -56,10 +71,16 @@ describe("parser", () => {
           // Random formatting differences(?) mean the bytes of the actual files
           // are different so we have to load them in via pngjs and compare the
           // bytes.
-          let actual = PNG.sync.read(fs.readFileSync(outFname));
-          let expected = PNG.sync.read(fs.readFileSync(expectedFname));
+          for (let i = 0; i < frameCount; i++) {
+            let actual = PNG.sync.read(
+              fs.readFileSync(outFname.replace("{frame}", i))
+            );
+            let expected = PNG.sync.read(
+              fs.readFileSync(expectedFname.replace("{frame}", i))
+            );
 
-          assert.deepStrictEqual(actual.data, expected.data);
+            assert.deepStrictEqual(actual.data, expected.data);
+          }
         });
       });
     }

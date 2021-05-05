@@ -358,7 +358,7 @@ function readCelChunk(parser, chunkPos, chunkSize) {
         data: inflateSync(imageData),
       };
     default:
-      throw new Error("unhandled cel type");
+      throw new Error(`unhandled cel type ${header.celType.toString(16)}`);
   }
 }
 
@@ -371,7 +371,7 @@ function readLayerChunk(parser) {
     .uint("defaultWidth", 16)
     .uint("defaultHeight", 16)
     //
-    // TODO: we should check here that we support the blend mode here.
+    // TODO: we should check that we support the blend mode here.
     .uint("blendMode", 16)
     .uint("opacity", 8)
     .jump(3)
