@@ -38,14 +38,16 @@ describe("parser", () => {
       let fname = "ases/frog.ase";
       let parsed = parse(fname);
       for (let p of parsed) {
-        if (p.type === "TAGS") {
-          assert.deepStrictEqual(p, {
-            type: "TAGS",
-            tags: [
-              { from: 0, to: 3, anidir: 0, r: 0, g: 0, b: 0, name: "idle" },
-              { from: 4, to: 11, anidir: 0, r: 0, g: 0, b: 0, name: "jump" },
-            ],
-          });
+        switch (p.type) {
+          case "TAGS":
+            assert.deepStrictEqual(p, {
+              type: "TAGS",
+              tags: [
+                { from: 0, to: 3, anidir: 0, r: 0, g: 0, b: 0, name: "idle" },
+                { from: 4, to: 11, anidir: 0, r: 0, g: 0, b: 0, name: "jump" },
+              ],
+            });
+            break;
         }
       }
     });

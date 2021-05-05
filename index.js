@@ -171,10 +171,6 @@ function* parse(fname) {
   parser.seek(headerPos + 128);
 
   for (let i = 0; i < header.frames; i++) {
-    yield {
-      type: FRAME,
-      idx: i,
-    };
     yield* chunks(parser);
   }
 }
@@ -297,6 +293,10 @@ function* chunks(parser) {
     .jump(4);
   // TODO: check magic is correct.
   let frameHeader = parser.flush();
+  yield {
+    type: FRAME,
+    duration: frameHeader.duration,
+  };
   for (let j = 0; j < frameHeader.chunks; j++) {
     let chunkPos = parser.tell();
     let chunkHeader = parser
