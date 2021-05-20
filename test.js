@@ -33,55 +33,57 @@ function canonical(binary, from, to) {
 }
 
 describe("parser", () => {
-  describe("parses slice data", () => {
-    let fname = "ases/slices.ase";
-    let parsed = parse(fname);
-    let slices = [];
-    for (let p of parsed) {
-      switch (p.type) {
-        case "SLICE":
-          slices.push(p);
+  describe("slice data", () => {
+    it("parses slice data", () => {
+      let fname = "ases/slices.ase";
+      let parsed = parse(fname);
+      let slices = [];
+      for (let p of parsed) {
+        switch (p.type) {
+          case "SLICE":
+            slices.push(p);
+        }
       }
-    }
 
-    assert.deepStrictEqual(slices, [
-      {
-        type: "SLICE",
-        name: "top left",
-        keys: [
-          {
-            frame: 0,
-            bounds: { x: 0, y: 0, w: 5, h: 5 },
-            center: { x: 0, y: 0, w: 0, h: 0 },
-            pivot: { x: 0, y: 0 },
-          },
-        ],
-      },
-      {
-        type: "SLICE",
-        name: "top right",
-        keys: [
-          {
-            frame: 0,
-            bounds: { x: 11, y: 0, w: 5, h: 5 },
-            center: { x: 0, y: 0, w: 0, h: 0 },
-            pivot: { x: 2, y: 2 },
-          },
-        ],
-      },
-      {
-        type: "SLICE",
-        name: "bottom left",
-        keys: [
-          {
-            frame: 0,
-            bounds: { x: 0, y: 8, w: 8, h: 8 },
-            center: { x: 1, y: 2, w: 3, h: 4 },
-            pivot: { x: 0, y: 0 },
-          },
-        ],
-      },
-    ]);
+      assert.deepStrictEqual(slices, [
+        {
+          type: "SLICE",
+          name: "top left",
+          keys: [
+            {
+              frame: 0,
+              bounds: { x: 0, y: 0, w: 5, h: 5 },
+              center: { x: 0, y: 0, w: 0, h: 0 },
+              pivot: { x: 0, y: 0 },
+            },
+          ],
+        },
+        {
+          type: "SLICE",
+          name: "top right",
+          keys: [
+            {
+              frame: 0,
+              bounds: { x: 11, y: 0, w: 5, h: 5 },
+              center: { x: 0, y: 0, w: 0, h: 0 },
+              pivot: { x: 2, y: 2 },
+            },
+          ],
+        },
+        {
+          type: "SLICE",
+          name: "bottom left",
+          keys: [
+            {
+              frame: 0,
+              bounds: { x: 0, y: 8, w: 8, h: 8 },
+              center: { x: 1, y: 2, w: 3, h: 4 },
+              pivot: { x: 0, y: 0 },
+            },
+          ],
+        },
+      ]);
+    });
   });
 
   describe("parses tag data", () => {
