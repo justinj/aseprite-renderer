@@ -83,12 +83,16 @@ function fileParser(file) {
       parsed[name] = self.nextUint(width);
       return self;
     },
-    int(name, width) {
+
+    nextInt(width) {
       let val = self.nextUint(width);
       if (val & (1 << (width - 1))) {
         val -= 2 * Math.pow(2, width - 1);
       }
-      parsed[name] = val;
+      return val;
+    },
+    int(name, width) {
+      parsed[name] = self.nextInt(width);
       return self;
     },
 
@@ -134,6 +138,8 @@ const FRAME = "FRAME";
 const CEL = "CEL";
 const LINK = "LINK";
 const LAYER = "LAYER";
+const SLICE = "SLICE";
+const SLICE_USER_DATA = "SLICE_USER_DATA";
 const TAGS = "TAGS";
 
 function* parse(fname) {
@@ -325,6 +331,12 @@ function* chunks(parser) {
       case ASE_FILE_CHUNK_CEL:
         yield readCelChunk(parser, chunkPos, chunkHeader.chunkSize);
         break;
+      case ASE_FILE_CHUNK_USER_DATA:
+        yield readUserDataChunk(parser);
+        break;
+      case ASE_FILE_CHUNK_SLICE:
+        yield readSliceChunk(parser);
+        break;
       default:
         console.log(
           "unhandled chunk type:",
@@ -443,6 +455,79 @@ function readLayerChunk(parser) {
   header.type = LAYER;
 
   return header;
+}
+
+function readUserDataChunk(parser) {
+  let flags = parser.nextUint(32);
+  let text = "";
+  if (flags & ASE_USER_DATA_FLAG_HAS_TEXT) {
+    text = parser.nextString();
+  }
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let a = 0;
+  if (flags & ASE_USER_DATA_FLAG_HAS_COLOR) {
+    r = parser.nextUint(8);
+    g = parser.nextUint(8);
+    b = parser.nextUint(8);
+    a = parser.nextUint(8);
+  }
+
+  return {
+    type: SLICE_USER_DATA,
+    text,
+    r,
+    g,
+    b,
+    a,
+  };
+}
+
+function readSliceChunk(parser) {
+  let nkeys = parser.nextUint(32);
+  let flags = parser.nextUint(32);
+  parser.nextUint(32);
+  let name = parser.nextString();
+
+  let keys = [];
+
+  for (let i = 0; i < nkeys; i++) {
+    let frame = parser.nextUint(32);
+    let bounds = parser
+      .int("x", 32)
+      .int("y", 32)
+      .uint("w", 32)
+      .uint("h", 32)
+      .flush();
+
+    let center = { x: 0, y: 0, w: 0, h: 0 };
+    if (flags & ASE_SLICE_FLAG_HAS_CENTER_BOUNDS) {
+      center.x = parser.nextInt(32);
+      center.y = parser.nextInt(32);
+      center.w = parser.nextUint(32);
+      center.h = parser.nextUint(32);
+    }
+
+    let pivot = { x: 0, y: 0 };
+    if (flags & ASE_SLICE_FLAG_HAS_PIVOT_POINT) {
+      pivot.x = parser.nextInt(32);
+      pivot.y = parser.nextInt(32);
+    }
+
+    keys.push({
+      frame,
+      bounds,
+      center,
+      pivot,
+    });
+  }
+
+  return {
+    type: SLICE,
+    name,
+    keys,
+  };
 }
 
 module.exports = { renderFrames, parse };
