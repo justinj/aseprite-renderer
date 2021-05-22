@@ -237,6 +237,7 @@ function* renderFrames(stream) {
         }
         break;
       case TAGS:
+      case SLICE:
         // Just pass this on up.
         yield ins;
         break;
