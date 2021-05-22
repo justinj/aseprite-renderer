@@ -1,6 +1,5 @@
 const fs = require("fs");
 const { inflateSync } = require("zlib");
-const { PNG } = require("pngjs");
 
 // Constants lifted from
 // https://github.com/aseprite/aseprite/blob/main/src/dio/aseprite_common.h.
@@ -238,6 +237,8 @@ function* renderFrames(stream) {
         break;
       case TAGS:
       case SLICE:
+      case SLICE_USER_DATA:
+        // TODO: perhaps we should handle attaching the user data to the relevant slice.
         // Just pass this on up.
         yield ins;
         break;
